@@ -21,8 +21,12 @@ function secretKey() {
 }
 
 export function cookieOptions(maxAge = AUTH_MAX_AGE): string {
-  const secure = process.env.NODE_ENV === "production" ? "; Secure" : "";
-  return `Path=/; HttpOnly; SameSite=Lax; Max-Age=${maxAge}${secure}`;
+  // Secure 默认随生产环境开启；纯 HTTP 部署可用 COOKIE_SECURE=false 关闭
+  const secure =
+    process.env.COOKIE_SECURE !== undefined
+      ? process.env.COOKIE_SECURE === "true"
+      : process.env.NODE_ENV === "production";
+  return `Path=/; HttpOnly; SameSite=Lax; Max-Age=${maxAge}${secure ? "; Secure" : ""}`;
 }
 
 export function setAuthCookieHeader(token: string): string {
