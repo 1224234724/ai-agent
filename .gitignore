@@ -46,6 +46,7 @@ next-env.d.ts
 /data/audit-log.jsonl
 /data/conversations/
 /data/kb-config.json
+/data/.mysql-migrated
 
 # docker local overrides
 docker-compose.override.yml

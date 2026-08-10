@@ -1,9 +1,7 @@
-// 对话持久化：按用户隔离存储 data/conversations/{userId}/
+// 对话持久化：MySQL conversations 表，按用户隔离
 
-import { promises as fs } from "fs";
-import path from "path";
-
-const STORE_ROOT = path.join(process.cwd(), "data", "conversations");
+import type { RowDataPacket } from "mysql2/promise";
+import { execute, query } from "@/lib/db";
 
 export type StoredMessage = { role: "user" | "assistant"; content: string };
 
@@ -19,26 +17,51 @@ function safeId(id: string): string {
   return id.replace(/[^a-zA-Z0-9_-]/g, "").slice(0, 64);
 }
 
-function userDir(userId: string): string {
-  return path.join(STORE_ROOT, safeId(userId) || "anonymous");
+function safeUser(userId: string): string {
+  return safeId(userId) || "anonymous";
 }
 
-async function ensureDir(userId: string): Promise<string> {
-  const dir = userDir(userId);
-  await fs.mkdir(dir, { recursive: true });
-  return dir;
+type ConversationRow = RowDataPacket & {
+  id: string;
+  title: string;
+  persona: string;
+  messages: StoredMessage[] | string;
+  updated_at: Date;
+};
+
+function toConversation(row: ConversationRow): Conversation {
+  const messages =
+    typeof row.messages === "string"
+      ? (JSON.parse(row.messages) as StoredMessage[])
+      : row.messages;
+  return {
+    id: row.id,
+    title: row.title,
+    persona: row.persona,
+    messages: Array.isArray(messages) ? messages : [],
+    updatedAt: new Date(row.updated_at).toISOString(),
+  };
 }
 
 export async function saveConversation(
   userId: string,
   conv: Conversation
 ): Promise<void> {
-  const dir = await ensureDir(userId);
-  const file = path.join(dir, `${safeId(conv.id)}.json`);
-  await fs.writeFile(
-    file,
-    JSON.stringify({ ...conv, updatedAt: new Date().toISOString() }, null, 2),
-    "utf-8"
+  await execute(
+    `INSERT INTO conversations (id, user_id, title, persona, messages, updated_at)
+     VALUES (?, ?, ?, ?, ?, UTC_TIMESTAMP(3))
+     ON DUPLICATE KEY UPDATE
+       title = VALUES(title),
+       persona = VALUES(persona),
+       messages = VALUES(messages),
+       updated_at = VALUES(updated_at)`,
+    [
+      safeId(conv.id),
+      safeUser(userId),
+      conv.title ?? "",
+      conv.persona ?? "",
+      JSON.stringify(conv.messages ?? []),
+    ]
   );
 }
 
@@ -46,18 +69,12 @@ export async function listConversations(
   userId: string
 ): Promise<Conversation[]> {
   try {
-    const dir = await ensureDir(userId);
-    const files = await fs.readdir(dir);
-    const list: Conversation[] = [];
-    for (const name of files.filter((f) => f.endsWith(".json"))) {
-      try {
-        const raw = await fs.readFile(path.join(dir, name), "utf-8");
-        list.push(JSON.parse(raw) as Conversation);
-      } catch {
-        // 跳过损坏文件
-      }
-    }
-    return list.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+    const rows = await query<ConversationRow>(
+      `SELECT id, title, persona, messages, updated_at
+       FROM conversations WHERE user_id = ? ORDER BY updated_at DESC`,
+      [safeUser(userId)]
+    );
+    return rows.map(toConversation);
   } catch {
     return [];
   }
@@ -67,9 +84,11 @@ export async function deleteConversation(
   userId: string,
   id: string
 ): Promise<void> {
-  const file = path.join(userDir(userId), `${safeId(id)}.json`);
   try {
-    await fs.unlink(file);
+    await execute(
+      `DELETE FROM conversations WHERE user_id = ? AND id = ?`,
+      [safeUser(userId), safeId(id)]
+    );
   } catch {
     // 已不存在则忽略
   }

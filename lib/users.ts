@@ -1,8 +1,8 @@
-// 企业用户：文件型账号表（仅 Node Runtime）
+// 企业用户：MySQL 账号表（仅 Node Runtime）
 
-import { promises as fs } from "fs";
-import path from "path";
 import { createHash, timingSafeEqual } from "crypto";
+import type { RowDataPacket } from "mysql2/promise";
+import { query } from "@/lib/db";
 import type { PersonaKey } from "@/lib/personas";
 import { resolvePersona } from "@/lib/personas";
 import type { Role } from "@/lib/roles";
@@ -21,7 +21,14 @@ export type UserRecord = {
 
 export type PublicUser = Omit<UserRecord, "passwordHash">;
 
-const USERS_PATH = path.join(process.cwd(), "data", "users.json");
+type UserRow = RowDataPacket & {
+  id: string;
+  username: string;
+  password_hash: string;
+  name: string;
+  role: Role;
+  persona: PersonaKey;
+};
 
 function jwtSecret(): string {
   return process.env.JWT_SECRET || "dev-jwt-secret-change-me";
@@ -44,14 +51,15 @@ function safeEqualHex(a: string, b: string): boolean {
   }
 }
 
-async function readUsers(): Promise<UserRecord[]> {
-  try {
-    const raw = await fs.readFile(USERS_PATH, "utf-8");
-    const data = JSON.parse(raw) as { users?: UserRecord[] };
-    return Array.isArray(data.users) ? data.users : [];
-  } catch {
-    return [];
-  }
+function toRecord(row: UserRow): UserRecord {
+  return {
+    id: row.id,
+    username: row.username,
+    passwordHash: row.password_hash,
+    name: row.name,
+    role: row.role,
+    persona: row.persona,
+  };
 }
 
 function toPublic(user: UserRecord): PublicUser {
@@ -65,12 +73,12 @@ function toPublic(user: UserRecord): PublicUser {
 export async function findUserByUsername(
   username: string
 ): Promise<UserRecord | null> {
-  const users = await readUsers();
-  return (
-    users.find(
-      (u) => u.username.toLowerCase() === username.trim().toLowerCase()
-    ) ?? null
+  const rows = await query<UserRow>(
+    `SELECT id, username, password_hash, name, role, persona
+     FROM users WHERE LOWER(username) = LOWER(TRIM(?)) LIMIT 1`,
+    [username]
   );
+  return rows.length > 0 ? toRecord(rows[0]) : null;
 }
 
 export async function authenticate(
