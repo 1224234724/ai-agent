@@ -116,6 +116,8 @@ jobs:
           key: ${{ secrets.DEPLOY_SSH_KEY }}
           port: ${{ secrets.DEPLOY_PORT || 22 }}
           envs: IMAGE_NAME,DEPLOY_PATH,GHCR_USER,GHCR_TOKEN
+          # 国内拉 ghcr.io 较慢，默认 10 分钟不够
+          command_timeout: 30m
           script: |
             set -e
             cd "$DEPLOY_PATH"
@@ -134,7 +136,12 @@ jobs:
             if [ -n "$GHCR_TOKEN" ] && [ -n "$GHCR_USER" ]; then
               echo "$GHCR_TOKEN" | docker login ghcr.io -u "$GHCR_USER" --password-stdin
             fi
-            docker compose pull app
+            # 国内直连 ghcr.io 很慢，先试 2 分钟，不行就走 gh-proxy 加速拉取后重打标签
+            if ! timeout 120 docker compose pull app; then
+              echo "直连 ghcr.io 超时/失败，改用 gh-proxy 加速拉取"
+              docker pull "docker.gh-proxy.cn/$IMAGE_NAME"
+              docker tag "docker.gh-proxy.cn/$IMAGE_NAME" "$IMAGE_NAME"
+            fi
             docker compose up -d --remove-orphans
             docker compose ps
 
