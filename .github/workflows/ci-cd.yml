@@ -73,8 +73,6 @@ jobs:
           tags: |
             type=raw,value=latest
             type=sha,prefix=sha-
-          flavor: |
-            lowercase=true
 
       - name: Build and push
         uses: docker/build-push-action@v6
