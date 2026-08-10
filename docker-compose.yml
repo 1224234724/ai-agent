@@ -1,0 +1,30 @@
+services:
+  app:
+    image: ${IMAGE_NAME:-ghcr.io/OWNER/ai-agent:latest}
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "${APP_PORT:-3000}:3000"
+    env_file:
+      - .env
+    environment:
+      NODE_ENV: production
+      HOSTNAME: 0.0.0.0
+      PORT: 3000
+    volumes:
+      # 持久化知识库、用户、对话、审计
+      - ./data:/app/data
+    restart: unless-stopped
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "wget",
+          "-qO-",
+          "http://127.0.0.1:3000/login",
+        ]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 40s

@@ -1,0 +1,36 @@
+{
+  "users": [
+    {
+      "id": "u-admin",
+      "username": "admin",
+      "passwordHash": "8988a1ee9a68936e955aa0ba1bee930e57068b2586ece6138d8b036eeb5238ac",
+      "name": "系统管理员",
+      "role": "admin",
+      "persona": "hengce"
+    },
+    {
+      "id": "u-zhangsan",
+      "username": "zhangsan",
+      "passwordHash": "f20c93f3d4c53b93c2e8da992064709552f38050da2942f97ccf1f2a85963f26",
+      "name": "张三",
+      "role": "operator",
+      "persona": "zhihang"
+    },
+    {
+      "id": "u-lisi",
+      "username": "lisi",
+      "passwordHash": "a08562bc79d8cd7971486a6bbbdd7049a67c277358792142c3385de70295a275",
+      "name": "李四",
+      "role": "analyst",
+      "persona": "hengce"
+    },
+    {
+      "id": "u-wangwu",
+      "username": "wangwu",
+      "passwordHash": "4c603ffe416002859007adeb26c2943e7a5ee17e11e69fcd36458c84538c03f3",
+      "name": "王五",
+      "role": "operator",
+      "persona": "zhihang"
+    }
+  ]
+}
